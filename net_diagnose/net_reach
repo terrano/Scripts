@@ -1,0 +1,34 @@
+#!/bin/bash
+
+if [[ $1 && -f check_ip ]] 
+then 
+	./check_ip $1
+	if [ $? -eq 0 ]; 
+	then 
+		IP=$1; 
+	else 
+		IP="8.8.8.8"
+	fi
+else 
+	IP="8.8.8.8"
+fi
+
+echo "Pinging IP:" $IP
+
+ping_resualts=$(ping $IP -c 4)
+loss=$( echo $ping_resualts | grep loss | sed -E -e "s/(.*) ([0-9]+)(\\.*[0-9]*)%(.*)/\2\3/g")
+delay=$( echo $ping_resualts | grep mdev | sed -E -e "s/(.*)= (.*)\/(.*)\/(.*)\/(.*) ms/\3/g")
+
+echo "loss:" $loss $'\n'"delay:" $delay
+
+GW=$(route | grep default | sed -E -e "s/(.*) ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}).*0\.0\.0\.0(.*)/\2/g")
+
+echo "Pinging IP:" $GW
+
+ping_gw=$(ping $GW -c 4)
+gw_loss=$( echo $ping_gw | grep loss | sed -E -e "s/(.*) ([0-9]+)(\\.*[0-9]*)%(.*)/\2\3/g")
+gw_delay=$( echo $ping_gw | grep mdev | sed -E -e "s/(.*)= (.*)\/(.*)\/(.*)\/(.*) ms/\3/g")
+
+echo "loss:" $gw_loss $'\n'"delay:" $gw_delay
+
+exit 0

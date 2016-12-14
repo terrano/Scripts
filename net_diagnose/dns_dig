@@ -1,0 +1,26 @@
+#!/bin/bash
+
+if [[ $1 && -f check_ip ]] 
+then 
+	./check_ip $1
+	if [ $? -eq 0 ]; 
+	then 
+		server=$1; 
+	else 
+		server="8.8.8.8"
+	fi
+else 
+	server="8.8.8.8"
+fi
+
+if [ -z $2 ]
+then 
+	name="google.com"
+else
+	name=$2
+fi
+
+ip=$( dig $server $name | grep ^$name.*IN'\s'A )
+ip=$( echo $ip | sed -E -e "s/.* ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}).*/\1/g" )
+
+echo $ip
