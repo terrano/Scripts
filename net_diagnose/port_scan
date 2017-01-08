@@ -1,0 +1,30 @@
+#!/bin/bash
+
+if [ -z $1 ] || [ ! -f check_ip ] 
+then
+	url="google.com.ua"
+	if [[ -f dns_dig ]];
+        then
+        	url=$( ./dns_dig $url )
+		if [ $? -ne 0 ]; then url="212.42.76.253"; fi
+	fi
+else
+	./check_ip $1
+	if [ $? -eq 0 ]; 
+	then 
+		url=$1; 
+	elif [[ -f dns_dig ]];
+	then
+		url=$( ./dns_dig $1 )
+		if [ $? -ne 0 ]; then exit 1; fi
+	fi
+fi
+
+output=$( nmap $url -p 21,25,80,443,123 | grep "open")
+
+if [[ $output =~ ^$ ]] 
+then 
+	exit 1
+else 
+	exit 0 
+fi

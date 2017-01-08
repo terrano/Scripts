@@ -1,11 +1,11 @@
 #!/bin/bash
 
-if [[ $1 && -f check_ip ]] 
+if [[ $2 && -f check_ip ]] 
 then 
-	./check_ip $1
+	./check_ip $2
 	if [ $? -eq 0 ]; 
 	then 
-		server=$1; 
+		server=$2; 
 	else 
 		server="8.8.8.8"
 	fi
@@ -13,14 +13,23 @@ else
 	server="8.8.8.8"
 fi
 
-if [ -z $2 ]
+if [ -z $1 ]
 then 
 	name="google.com"
 else
-	name=$2
+	name=$1
+fi
+
+output=$( dig $server $name )
+error=$( echo $output | sed -E -e "s/.*, ANSWER: ([0-9]{1,3}).*/\1/g" )
+
+if [ $error -eq "0" ] 
+then 
+	exit 1
 fi
 
 ip=$( dig $server $name | grep ^$name.*IN'\s'A )
 ip=$( echo $ip | sed -E -e "s/.* ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}).*/\1/g" )
 
 echo $ip
+exit 0

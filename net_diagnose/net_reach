@@ -1,34 +1,85 @@
 #!/bin/bash
 
-if [[ $1 && -f check_ip ]] 
-then 
-	./check_ip $1
-	if [ $? -eq 0 ]; 
-	then 
-		IP=$1; 
-	else 
-		IP="8.8.8.8"
+PING_TIMES=10
+
+## Function for interpreting ping resaults
+eval_ping()
+{
+        pl=$1
+        dl=$2
+
+	if [[ $pl -eq 100 ]]; then echo "Remote host is unavailable"; exit; fi
+
+	if [[ $pl -ge 2 ]] && [[ $pl -le 3 ]]; then echo "there is some packet loss"; fi
+	if [[ $pl -ge 4 ]]; then echo "there is severe packet loss"; fi		
+
+	if (( $(echo "$dl > 150" |bc -l) )); then echo "there is serious traffic delay"; exit; fi 
+	if (( $(echo "$dl > 90" |bc -l) )); then echo "there is moderate traffic delay"; exit; fi	
+
+	echo "RTT is normal, no packetloss, delay is lower then 90ms"
+        return
+}
+
+## Checking if Google DNS 8.8.8.8 resolves name google.com. If yes - that means Internet works fine
+if [ -f dns_dig ];
+then
+	ip=$( ./dns_dig )
+	if [ $? -eq 0 ];
+	then
+		echo "Remote DNS is available."
+	elif [ $? -eq 1 ];
+	then
+		echo "Remote DNS (8.8.8.8) did not respond"
 	fi
-else 
-	IP="8.8.8.8"
 fi
 
-echo "Pinging IP:" $IP
+## Scannig host google.com.ua for opened ports 21,25,80,443,123. If at least one of them is opened then we have Internet
+if [ -f port_scan ];
+then
+        ./port_scan
+        if [ $? -eq 0 ];
+        then
+                echo "Internet connectivity confirmed"
+        else
+                echo "Common ports are unavailable. Looks like there is Internet connectivity issue."
+        fi
+fi
 
-ping_resualts=$(ping $IP -c 4)
-loss=$( echo $ping_resualts | grep loss | sed -E -e "s/(.*) ([0-9]+)(\\.*[0-9]*)%(.*)/\2\3/g")
-delay=$( echo $ping_resualts | grep mdev | sed -E -e "s/(.*)= (.*)\/(.*)\/(.*)\/(.*) ms/\3/g")
+## Pinging 8.8.8.8 to check if there is ICMP connectivity
+if [ -f pinger ];
+then
+	loss_delay=$( ./pinger 8.8.8.8 $PING_TIMES)
+	echo "Testing RTT to remote host..."
+	eval_ping $loss_delay	
+	exit 0;
+fi
 
-echo "loss:" $loss $'\n'"delay:" $delay
+## Retrieve default Gateway Interface
+if [ -f get_default_int ]; 
+then
+	default_int=$( ./get_default_int )
+	if [ $? -eq 1 ]; then 
+		echo "No Default Interface - internet can't work"; 
+		# If there is no default gateway - internet can't work
+		exit 1;
+	fi
+fi
 
-GW=$(route | grep default | sed -E -e "s/(.*) ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}).*0\.0\.0\.0(.*)/\2/g")
+## Retrieve default Gateway IP
+if [ -f get_default_gw ]; 
+then
+        default_gw=$( ./get_default_gw )
+        if [ $? -eq 1 ]; then
+                echo "No Default IP";
+                # If there is no default gateway IP - internet can't work
+               exit 2;
+        fi
+fi
 
-echo "Pinging IP:" $GW
-
-ping_gw=$(ping $GW -c 4)
-gw_loss=$( echo $ping_gw | grep loss | sed -E -e "s/(.*) ([0-9]+)(\\.*[0-9]*)%(.*)/\2\3/g")
-gw_delay=$( echo $ping_gw | grep mdev | sed -E -e "s/(.*)= (.*)\/(.*)\/(.*)\/(.*) ms/\3/g")
-
-echo "loss:" $gw_loss $'\n'"delay:" $gw_delay
-
-exit 0
+## Trying to ping default gateway to check if there is connectivity there
+if [[ $default_gw =~ ^$ ]] && [[ -f pinger ]];
+then
+        lossg_delayg=$( ./pinger $default_gw $PING_TIMES )
+        echo "Testing RTT to gateway..."
+        eval_ping $lossg_delayg
+fi

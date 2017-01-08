@@ -3,7 +3,7 @@
 INT=$(route | grep default | sed -E -e "s/(.*) (.*)$/\2/g")
 
 if [[ $INT =~ ^$ ]]; then
-	INT=-1	
+	exit 1	
 fi
 
 echo $INT
